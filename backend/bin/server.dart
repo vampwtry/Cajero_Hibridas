@@ -43,25 +43,27 @@ void main() async {
   });
 
   // soldo
- router.get('/saldo/<id>', (Request request, String id) async {
-  final conn = await MySqlConnection.connect(dbSettings);
-  try {
-    final result = await conn.query(
-      'SELECT saldo FROM usuario WHERE id_usuario = ?',
-      [int.parse(id)],  // Convertir el id a entero
-    );
-    if (result.isNotEmpty) {
-      final saldo = result.first[0];
-      return Response.ok(jsonEncode({'saldo': saldo}));
-    } else {
-      return Response.notFound('Usuario no encontrado');
+  router.get('/saldo/<id>', (Request request, String id) async {
+    final conn = await MySqlConnection.connect(dbSettings);
+    try {
+      final result = await conn.query(
+        'SELECT saldo FROM usuario WHERE id_usuario = ?',
+        [int.parse(id)], // Convertir el id a entero
+      );
+      if (result.isNotEmpty) {
+        final saldo = result.first[0];
+        return Response.ok(jsonEncode({'saldo': saldo}));
+      } else {
+        return Response.notFound('Usuario no encontrado');
+      }
+    } catch (e) {
+      return Response.internalServerError(
+        body: 'Error en la consulta a la base de datos',
+      );
+    } finally {
+      await conn.close();
     }
-  } catch (e) {
-    return Response.internalServerError(body: 'Error en la consulta a la base de datos');
-  } finally {
-    await conn.close();
-  }
-});
+  });
 
   // ingresar plata
   router.post('/ingresar', (Request request) async {
@@ -78,13 +80,15 @@ void main() async {
     );
     await conn.close();
 
-    return Response.ok(jsonEncode({'success': true}));
+    return Response.ok(
+      jsonEncode({'success': true, 'message': 'Ingreso exitoso'}),
+    );
   });
 
   // retirar
   router.post('/retirar', (Request request) async {
     final body = await request.readAsString();
-    final data = jsonDecode(body); //Lo decodifica (convierte) a un Map
+    final data = jsonDecode(body);
 
     final id = data['id_usuario'];
     final monto = data['monto'];
@@ -103,19 +107,26 @@ void main() async {
           [monto, id],
         );
         await conn.close();
-        return Response.ok(jsonEncode({'success': true}));
+        return Response.ok(
+          jsonEncode({'success': true, 'message': 'Retiro exitoso'}),
+        );
       } else {
         await conn.close();
-        return Response.ok(jsonEncode({'success': false, 'message': 'Saldo insuficiente'}));
+        return Response.ok(
+          jsonEncode({'success': false, 'message': 'Saldo insuficiente'}),
+        );
       }
     } else {
       await conn.close();
-      return Response.notFound('Usuario no encontrado');
+      return Response.notFound(
+        jsonEncode({'success': false, 'message': 'Usuario no encontrado'}),
+      );
     }
   });
-
-  // servidor corriendo 
-  final handler = const Pipeline().addMiddleware(logRequests()).addHandler(router);
+  // servidor corriendo
+  final handler = const Pipeline()
+      .addMiddleware(logRequests())
+      .addHandler(router);
   final server = await io.serve(handler, InternetAddress.anyIPv4, 8080);
   print('Servidor corriendo en http://${server.address.host}:${server.port}');
 }

@@ -1,4 +1,5 @@
 //Importaciones
+import 'package:cajero_app/service/service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:animate_do/animate_do.dart';
@@ -14,11 +15,79 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   // Controladores de texto para los campos de identificación y clave
-  final TextEditingController _idController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   // Variables para manejar el estado de la visibilidad de la clave y la aceptación de términos
   bool _obscureText = true;
   bool _acceptTerms = false;
+
+  bool _isLoading = false;
+
+  final ApiService _apiService = ApiService();
+  // Método para manejar el inicio de sesión
+  // Función para manejar el inicio de sesión
+  Future<void> _handleLogin() async {
+    // Verificar que se aceptaron los términos
+    if (!_acceptTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes aceptar los términos y condiciones'),
+        ),
+      );
+      return;
+    }
+
+    // Verificar que los campos no estén vacíos
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor completa todos los campos')),
+      );
+      return;
+    }
+
+    // Iniciar el proceso de carga
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Llamar al servicio de login
+      final response = await _apiService.login(
+        _emailController.text, // Usar el correo del usuario
+        _passwordController.text, // Usar la contraseña
+      );
+
+      // Verificar si el login fue exitoso
+      if (response['success'] == true) {
+        // Guardar el ID del usuario para uso posterior (puedes usar SharedPreferences)
+        final userId = response['id'];
+
+        // Navegar a la pantalla principal
+        Navigator.pushReplacementNamed(
+          context,
+          '/home',
+          arguments: userId, // Pasar el ID como argumento
+        );
+      } else {
+        // Mostrar mensaje de error si el login falló
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Credenciales incorrectas. Intenta de nuevo.'),
+          ),
+        );
+      }
+    } catch (e) {
+      // Manejar errores de conexión o del servidor
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error de conexión: ${e.toString()}')),
+      );
+    } finally {
+      // Finalizar el estado de carga
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     FadeInUp(
                       duration: const Duration(milliseconds: 900),
                       child: const Text(
-                        "Identificación",
+                        "Correo electrónico",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
@@ -98,16 +167,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 15),
 
-                    // Campo número de identificación
+                    // Campo número de Correo electrónico
                     FadeInUp(
                       duration: const Duration(milliseconds: 1000),
                       // Agregamos un campo de texto para la identificación
                       child: TextFormField(
                         // Vinculamos el controlador de texto
                         // para obtener el valor ingresado
-                        controller: _idController,
+                        controller: _emailController,
                         decoration: InputDecoration(
-                          labelText: "Número de identificación",
+                          labelText: "Correo electrónico",
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -121,10 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         // Establecemos el tipo de teclado
                         // para que solo acepte números
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
+                        keyboardType: TextInputType.emailAddress,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -170,10 +236,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         // Establecemos el tipo de teclado
                         // para que solo acepte números
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
+                        keyboardType: TextInputType.text,
+                    
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -208,47 +272,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Botón de Ingresar
                     FadeInUp(
                       duration: const Duration(milliseconds: 1300),
-                      // Establecemos el boton con ancho completo con double.infinity y la altura de 50
                       child: SizedBox(
                         width: double.infinity,
                         height: 50,
-                        // Boton de ingreso
                         child: ElevatedButton(
-                          onPressed: () {
-                            // Validar y redirigir al home
-                            // si _acceptTerms es true
-                            if (_acceptTerms) {
-                              // Comprabamos que los campos no estén vacíos
-                              if (_idController.text.isNotEmpty &&
-                                  _passwordController.text.isNotEmpty) {
-                                //Si es así, redirigimos al home
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  '/home',
-                                );
-                                // Si no, mostramos un mensaje de error
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Por favor completa todos los campos',
-                                    ),
-                                  ),
-                                );
-                              }
-                              // Si el checkbox no está marcado, mostramos un mensaje de error
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Debes aceptar los términos y condiciones',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          // Establecemos el color de fondo y el color del texto
-                          // del botón, el borde redondeado y la sombra
+                          onPressed:
+                              _isLoading
+                                  ? null
+                                  : _handleLogin, // Usar _handleLogin
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0958B8),
                             foregroundColor: Colors.white,
@@ -257,13 +288,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             elevation: 2,
                           ),
-                          child: const Text(
-                            "Ingresar ahora",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child:
+                              _isLoading
+                                  ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  )
+                                  : const Text(
+                                    "Ingresar ahora",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                         ),
                       ),
                     ),

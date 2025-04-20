@@ -11,7 +11,6 @@ SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
 
-
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
@@ -19,21 +18,27 @@ SET time_zone = "+00:00";
 
 --
 -- Base de datos: `cajero_hibridas`
---
-
 -- --------------------------------------------------------
-
---
+-- 
 -- Estructura de tabla para la tabla `usuario`
---
+-- 
 
 CREATE TABLE `usuario` (
-  `id_usuario` int(11) NOT NULL,
+  `id_usuario` int(11) NOT NULL AUTO_INCREMENT,
   `nombre` varchar(100) DEFAULT NULL,
   `correo` varchar(100) DEFAULT NULL,
   `contraseña` varchar(100) DEFAULT NULL,
-  `saldo` decimal(10,2) DEFAULT 0.00
+  `saldo` decimal(10,2) DEFAULT 0.00,
+  PRIMARY KEY (`id_usuario`),
+  UNIQUE KEY `correo` (`correo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Volcado de datos para la tabla `usuario`
+--
+
+INSERT INTO `usuario` (`nombre`, `correo`, `contraseña`, `saldo`) VALUES
+('sol', 'solecito@gmail.com', 'sol123', 100000.00);
 
 --
 -- Índices para tablas volcadas
@@ -54,11 +59,8 @@ ALTER TABLE `usuario`
 -- AUTO_INCREMENT de la tabla `usuario`
 --
 ALTER TABLE `usuario`
-  MODIFY `id_usuario` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_usuario` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 COMMIT;
-
-INSERT INTO `usuario`(`nombre`, `correo`, `contraseña`, `saldo`) VALUES ('sol','solecito@gmail.com','sol123',100000);
-
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
