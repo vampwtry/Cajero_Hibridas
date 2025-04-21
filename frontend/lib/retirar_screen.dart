@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:cajero_app/service/service.dart';
 
 class WithdrawalsScreen extends StatefulWidget {
   const WithdrawalsScreen({Key? key}) : super(key: key);
@@ -10,11 +11,12 @@ class WithdrawalsScreen extends StatefulWidget {
 }
 
 class _WithdrawalsScreenState extends State<WithdrawalsScreen> {
-  int _selectedIndex = 2; // Inicializado en 2 para el botón de retiros
-  // Controlador para el campo de texto donde se ingresa el valor a retirar
+  int _selectedIndex = 2;
   final TextEditingController _amountController = TextEditingController();
+  final ApiService _apiService = ApiService(); // Crear instancia de ApiService
+  bool _isLoading = false; // Estado de carga
+  int? userId;
 
-  // Valores predefinidos para los botones de retiro
   final List<String> _predefinedAmounts = [
     '20.000',
     '50.000',
@@ -23,6 +25,161 @@ class _WithdrawalsScreenState extends State<WithdrawalsScreen> {
     '300.000',
     '400.000',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      userId = ModalRoute.of(context)!.settings.arguments as int?;
+      print('User ID recibido: $userId');
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: No se encontró el ID del usuario'),
+          ),
+        );
+      }
+    });
+  }
+
+  // Método para procesar el retiro
+  Future<void> _processWithdrawal() async {
+    if (_amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor ingrese un valor a retirar')),
+      );
+      return;
+    }
+
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: No se identificó al usuario')),
+      );
+      return;
+    }
+
+    // Analizar el monto de retiro
+    double amount;
+    try {
+      // Eliminar cualquier punto del texto antes de analizarlo
+      String amountText = _amountController.text.replaceAll('.', '');
+      amount = double.parse(amountText);
+      print('Monto a retirar: $amount');
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ingrese un valor válido')));
+      return;
+    }
+
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El monto debe ser mayor a cero')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Llamar al servicio API para procesar el retiro
+      String result = await _apiService.retirarSaldo(userId!, amount);
+
+      // Verificar si la operación fue exitosa
+      if (result.contains('exitoso') || !result.contains('Error')) {
+        // Mostrar modal de retiro exitoso
+        showDialog(
+          context: context,
+          barrierDismissible: false, // El usuario debe usar un botón para salir
+          builder: (BuildContext context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              title: const Column(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 60),
+                  SizedBox(height: 10),
+                  Text(
+                    "¡Retiro Exitoso!",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0958B8),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Has retirado \$${_amountController.text} correctamente.",
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "¿Deseas realizar otra operación?",
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    // Limpiar el campo y cerrar el diálogo (para realizar otro retiro)
+                    _amountController.clear();
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    "Realizar otro retiro",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Cerrar el diálogo y regresar a la pantalla principal
+                    Navigator.pop(context);
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/home',
+                      arguments: userId,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0958B8),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text("Volver al Inicio"),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        // Mostrar mensaje de error con SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      // Manejar cualquier error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error en la conexión: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,26 +296,7 @@ class _WithdrawalsScreenState extends State<WithdrawalsScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: () {
-                            if (_amountController.text.isNotEmpty) {
-                              // En un caso real, aquí iría la lógica para procesar el retiro
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Procesando retiro de \$${_amountController.text}',
-                                  ),
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Por favor ingrese un valor a retirar',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
+                          onPressed: _isLoading ? null : _processWithdrawal,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0958B8),
                             foregroundColor: Colors.white,
@@ -167,13 +305,18 @@ class _WithdrawalsScreenState extends State<WithdrawalsScreen> {
                             ),
                             elevation: 2,
                           ),
-                          child: const Text(
-                            "Confirmar Retiro",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child:
+                              _isLoading
+                                  ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                  : const Text(
+                                    "Confirmar Retiro",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                         ),
                       ),
                     ],
@@ -199,36 +342,21 @@ class _WithdrawalsScreenState extends State<WithdrawalsScreen> {
               Expanded(
                 child: FadeInUp(
                   duration: const Duration(milliseconds: 800),
-                  // Cuadrícula para los botones de valores predefinidos
                   child: GridView.builder(
-                    // Configuración de la cuadrícula
                     gridDelegate:
-                    // Clase SliverGridDelegateWithFixedCrossAxisCount
-                    // Para crear una cuadrícula con un número fijo de columnas
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                      // 3 columnas
-                      crossAxisCount: 3,
-                      // espaciado entre botones
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                      // proporción de aspecto (alto/ancho) de los botones
-                      childAspectRatio: 2.5,
-                    ),
-                    // Numero de elementos en la cuadrícula
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 2.5,
+                        ),
                     itemCount: _predefinedAmounts.length,
-                    // Generamos cada botón de la cuadrícula
                     itemBuilder: (context, index) {
-                      // Botones de valores predefinidos
                       return OutlinedButton(
-                        // Actualizamos el campo de texto con el monto predefinido
                         onPressed: () {
                           setState(() {
-                            // Establecer el valor del botón en el campo de texto
-                            _amountController
-                                .text = _predefinedAmounts[index].replaceAll(
-                              '.',
-                              '',
-                            ); // Eliminar el punto para que sea un número entero
+                            _amountController.text = _predefinedAmounts[index]
+                                .replaceAll('.', '');
                           });
                         },
                         style: OutlinedButton.styleFrom(
@@ -237,7 +365,6 @@ class _WithdrawalsScreenState extends State<WithdrawalsScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        // Mostramos el valor del botón con el simbolo de dólar
                         child: Text(
                           "\$${_predefinedAmounts[index]}",
                           style: const TextStyle(
@@ -262,13 +389,21 @@ class _WithdrawalsScreenState extends State<WithdrawalsScreen> {
         onTap: (index) {
           if (index != _selectedIndex) {
             if (index == 0) {
-              // Navegación a la pantalla principal
-              Navigator.pushReplacementNamed(context, '/home');
+              // Navegación a la pantalla principal con el ID del usuario
+              Navigator.pushReplacementNamed(
+                context,
+                '/home',
+                arguments: userId,
+              );
             } else if (index == 1) {
-              // Para la pantalla de transferencias (aún no implementada)
-              Navigator.pushReplacementNamed(context, '/transfers');
+              // Navegación a la pantalla de retiros con el ID del usuario
+              Navigator.pushReplacementNamed(
+                context,
+                '/transfers',
+                arguments: userId,
+              );
             }
-            // No hacemos nada si el índice es 2 porque ya estamos en la pantalla de retiros
+            // No hacemos nada si el índice es 1 porque ya estamos en la pantalla de transferencias
           }
         },
         items: const [

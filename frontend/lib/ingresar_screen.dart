@@ -60,9 +60,11 @@ class _TransferScreenState extends State<TransferScreen> {
     }
 
     // Convertir el texto a double para el monto
-    final double amount;
+    double amount;
     try {
-      amount = double.parse(_amountController.text);
+      String amountText = _amountController.text.replaceAll('.', '');
+      amount = double.parse(amountText);
+      print('Monto a depositar: $amount');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -86,48 +88,96 @@ class _TransferScreenState extends State<TransferScreen> {
 
     try {
       // Llamar al método ingresarSaldo de ApiService
-      final message = await _apiService.ingresarSaldo(userId!, amount);
+      String result = await _apiService.ingresarSaldo(userId!, amount);
 
-      // Mostrar diálogo de éxito
-      showDialog(
-        context: context,
-        barrierDismissible: false, // El usuario debe interactuar con el diálogo
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text("Depósito exitoso"),
-            content: Text(
-              '$message\n\nHas depositado \$${amount.toStringAsFixed(2)} a tu cuenta',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context); // Cerrar el diálogo
-                  // Volver al home pasando el ID del usuario
-                  Navigator.pushReplacementNamed(
-                    context,
-                    '/home',
-                    arguments: userId,
-                  );
-                },
-                child: const Text(
-                  "Aceptar",
-                  style: TextStyle(color: Color(0xFF0958B8)),
-                ),
+      // Verificar si la operación fue exitosa
+      if (result.contains('exitoso') || !result.contains('Error')) {
+        // Mostrar modal de depósito exitoso
+        showDialog(
+          context: context,
+          barrierDismissible: false, // El usuario debe usar un botón para salir
+          builder: (BuildContext context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
               ),
-            ],
-          );
-        },
-      );
+              title: const Column(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 60),
+                  SizedBox(height: 10),
+                  Text(
+                    "¡Depósito Exitoso!",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0958B8),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Has depositado \$${amount.toStringAsFixed(2)} correctamente.",
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "¿Deseas realizar otra operación?",
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    // Limpiar el campo y cerrar el diálogo (para realizar otro depósito)
+                    _amountController.clear();
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    "Realizar otro depósito",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Cerrar el diálogo y regresar a la pantalla principal
+                    Navigator.pop(context);
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/home',
+                      arguments: userId,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0958B8),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text("Volver al Inicio"),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        // Mostrar mensaje de error con SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result), backgroundColor: Colors.red),
+        );
+      }
     } catch (e) {
-      // Manejar errores
+      // Manejar cualquier error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al realizar el depósito: ${e.toString()}'),
+          content: Text('Error en la conexión: $e'),
           backgroundColor: Colors.red,
         ),
       );
     } finally {
-      // Finalizar el estado de carga
       setState(() {
         _isLoading = false;
       });
