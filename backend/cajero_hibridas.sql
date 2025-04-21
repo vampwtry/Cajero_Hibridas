@@ -37,7 +37,7 @@ CREATE TABLE `usuario` (
 -- Volcado de datos para la tabla `usuario`
 --
 
-INSERT INTO `usuario` (`nombre`, `correo`, `contraseña`, `saldo`) VALUES
+INSERT INTO `usuario` (`nombre`, `correo`, `contrasena`, `saldo`) VALUES
 ('sol', 'solecito@gmail.com', 'sol123', 100000.00);
 
 --

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:cajero_app/service/service.dart';
 
 // Widget para manejar datos dinámicos
 class HomeScreen extends StatefulWidget {
@@ -15,17 +16,62 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   // Variable para manejar el nombre del usuario
   final String nombreUsuario = "Usuario";
-  // definimos la interfaz de la pantalla de inicio utilizando un Scaffold
+  // Variables para manejar el saldo y estado de carga
+  double? saldo;
+  bool isLoading = true;
+  String? errorMessage;
+  int? userId;
+
+  final ApiService apiService = ApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Cargamos el saldo cuando se inicia la pantalla
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      userId = ModalRoute.of(context)!.settings.arguments as int?;
+      _cargarSaldo();
+    });
+  }
+
+  // Método para cargar el saldo del usuario
+  Future<void> _cargarSaldo() async {
+    if (userId == null) {
+      setState(() {
+        errorMessage = "No se encontró información del usuario";
+        isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final saldoObtenido = await apiService.obtenerSaldo(userId!);
+      setState(() {
+        saldo = saldoObtenido;
+        isLoading = false;
+        errorMessage = saldoObtenido == null ? "Error al obtener saldo" : null;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = "Error de conexión: ${e.toString()}";
+        isLoading = false;
+      });
+    }
+  }
+
+  // Método para formatear el saldo en formato de moneda
+  String formatearSaldo(double? valor) {
+    if (valor == null) return "\$0.00";
+    return "\$${valor.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       // Definimos la barra de navegación superior
-      // con un AppBar que tiene un título y un botón de cerrar sesión
       appBar: AppBar(
-        // Aumentamos el tamaño de la barra de navegación superior
         toolbarHeight: 100,
         title: Column(
-          // Alineamos el texto a la izquierda
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
@@ -42,45 +88,36 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
-                fontSize: 24, // Tamaño más grande para el nombre del usuario
+                fontSize: 24,
               ),
             ),
           ],
         ),
-        // Lista de acciones en la barra de navegación superior
         actions: [
-          // Botón de cerrar sesión
           IconButton(
             icon: const Icon(Icons.exit_to_app, color: Color(0xFFE53935)),
-            // Cuando se presiona el botón, se muestra un modal de confirmación
             onPressed: () {
-              // Mostrar modal de confirmación
               showDialog(
                 context: context,
                 builder: (BuildContext context) {
-                  // Retornamos un AlertDialog para confirmar la acción
                   return AlertDialog(
                     title: const Text("Cerrar sesión"),
                     content: const Text("¿Estás seguro que deseas salir?"),
                     actions: [
-                      // Botón de cancelar
                       TextButton(
                         onPressed: () {
-                          Navigator.pop(context); // Cerrar el diálogo
+                          Navigator.pop(context);
                         },
                         child: const Text(
                           "Cancelar",
                           style: TextStyle(color: Colors.grey),
                         ),
                       ),
-                      // Botón de confirmar
                       TextButton(
                         onPressed: () {
-                          Navigator.pop(context); // Cerrar el diálogo
-                          Navigator.pushReplacementNamed(
-                            context,
-                            '/',
-                          ); // Volver al login
+                          Navigator.pop(context);
+                          // Navegar al login (ruta principal)
+                          Navigator.pushReplacementNamed(context, '/');
                         },
                         child: const Text(
                           "Confirmar",
@@ -95,23 +132,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      // Aplicamos un efecto de desvanecimiento a la pantalla principal
       body: FadeIn(
         duration: const Duration(milliseconds: 800),
-        // Margen interna para todos los lados
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          // Centramos el contenido de la pantalla
           child: Center(
-            // Aplicamos un efecto de desvanecimiento a la tarjeta
             child: Card(
-              // Agregamos una sombra a la tarjeta
               elevation: 5,
-              // Se agrega bordes redondeado a la tarjeta
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15),
               ),
-              // Contenedor dentro de la tarjeta con el ancho completo
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -133,28 +163,49 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(fontSize: 16, color: Colors.grey),
                     ),
                     const SizedBox(height: 5),
-                    const Text(
-                      "\$1,500,000.00",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    isLoading
+                        ? const CircularProgressIndicator(
+                          color: Color(0xFF0958B8),
+                        )
+                        : errorMessage != null
+                        ? Text(
+                          errorMessage!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 16,
+                          ),
+                        )
+                        : Text(
+                          formatearSaldo(saldo),
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                     const SizedBox(height: 20),
-                    // Alineamos el botón a la derecha
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Boton con icono y texto para ver detalles
                         OutlinedButton.icon(
-                          onPressed: () {},
+                          onPressed: () {
+                            // Si hay error o está cargando, intentar cargar de nuevo
+                            if (errorMessage != null || isLoading) {
+                              setState(() {
+                                isLoading = true;
+                                errorMessage = null;
+                              });
+                              _cargarSaldo();
+                            }
+                          },
                           icon: const Icon(
                             Icons.visibility,
                             color: Color(0xFF0958B8),
                           ),
-                          label: const Text(
-                            "Ver detalles",
-                            style: TextStyle(color: Color(0xFF0958B8)),
+                          label: Text(
+                            errorMessage != null || isLoading
+                                ? "Actualizar"
+                                : "Ver detalles",
+                            style: const TextStyle(color: Color(0xFF0958B8)),
                           ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFF0958B8)),
@@ -172,39 +223,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      // Barra de navegación inferior con las tres opciones
       bottomNavigationBar: BottomNavigationBar(
-        //Fondo de la barra de navegación inferior
-        backgroundColor: Color(0xFF0958B8),
-        // Indicamos el elemento seleccionado
+        backgroundColor: const Color(0xFF0958B8),
         currentIndex: _selectedIndex,
-        // Iconos y etiquetas de los elementos de la barra de navegación inferior
         selectedItemColor: const Color(0xFFFFFFFF),
         unselectedItemColor: const Color(0xFFC9C9C9),
-        // Mantenemos los elementos fijos en la barra de navegación inferior
         type: BottomNavigationBarType.fixed,
-        // Manejamos los clicks con el método onTap
         onTap: (index) {
-          // Verificamos si el índice seleccionado es diferente al índice actual
-          // para evitar cambios innecesarios
           if (index != _selectedIndex) {
             setState(() {
               _selectedIndex = index;
             });
 
-            // Navegación actualizada
+            // Navegación actualizada con el ID del usuario
             if (index == 0) {
+              // Ya estamos en Home, no necesitamos navegar
             } else if (index == 1) {
-              // Navegar a la pantalla de transferencias
-              Navigator.pushReplacementNamed(context, '/transfers');
+              // Navegar a la pantalla de transferencias/ingresos
+              Navigator.pushReplacementNamed(
+                context,
+                '/transfers',
+                arguments: userId,
+              );
             } else if (index == 2) {
               // Navegar a la pantalla de retiros
-              Navigator.pushReplacementNamed(context, '/withdrawals');
+              Navigator.pushReplacementNamed(
+                context,
+                '/withdrawals',
+                arguments: userId,
+              );
             }
           }
         },
-        // Definimos los elementos de la barra de navegación inferior
-        // cada uno con un icono y una etiqueta
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
           BottomNavigationBarItem(
