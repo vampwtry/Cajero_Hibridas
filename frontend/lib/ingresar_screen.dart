@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:cajero_app/service/service.dart';
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({Key? key}) : super(key: key);
@@ -12,6 +13,9 @@ class TransferScreen extends StatefulWidget {
 class _TransferScreenState extends State<TransferScreen> {
   int _selectedIndex = 1; // Inicializado en 1 para el botón de transferencia
   final TextEditingController _amountController = TextEditingController();
+  final ApiService _apiService = ApiService(); // Instancia del ApiService
+  bool _isLoading = false; // Control del estado de carga
+  int? userId;
 
   // Valores predefinidos para los botones de transferencia
   final List<String> _predefinedAmounts = [
@@ -24,12 +28,119 @@ class _TransferScreenState extends State<TransferScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      userId = ModalRoute.of(context)!.settings.arguments as int?;
+      print('User ID recibido: $userId');
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: No se encontró el ID del usuario'),
+          ),
+        );
+      }
+    });
+  }
+
+  // Método para procesar el depósito
+  Future<void> _processDeposit() async {
+    if (_amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor ingrese un valor a depositar')),
+      );
+      return;
+    }
+
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: No se identificó al usuario')),
+      );
+      return;
+    }
+
+    // Convertir el texto a double para el monto
+    final double amount;
+    try {
+      amount = double.parse(_amountController.text);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor ingrese un valor numérico válido'),
+        ),
+      );
+      return;
+    }
+
+    // Verificar que el monto sea positivo
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El monto debe ser mayor a cero')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Llamar al método ingresarSaldo de ApiService
+      final message = await _apiService.ingresarSaldo(userId!, amount);
+
+      // Mostrar diálogo de éxito
+      showDialog(
+        context: context,
+        barrierDismissible: false, // El usuario debe interactuar con el diálogo
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text("Depósito exitoso"),
+            content: Text(
+              '$message\n\nHas depositado \$${amount.toStringAsFixed(2)} a tu cuenta',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Cerrar el diálogo
+                  // Volver al home pasando el ID del usuario
+                  Navigator.pushReplacementNamed(
+                    context,
+                    '/home',
+                    arguments: userId,
+                  );
+                },
+                child: const Text(
+                  "Aceptar",
+                  style: TextStyle(color: Color(0xFF0958B8)),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      // Manejar errores
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al realizar el depósito: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      // Finalizar el estado de carga
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 100,
         title: const Text(
-          "Deposito",
+          "Depósito",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -97,7 +208,7 @@ class _TransferScreenState extends State<TransferScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "Transferencia a cuenta",
+                        "Depósito a cuenta",
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -106,7 +217,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       ),
                       const SizedBox(height: 20),
                       const Text(
-                        "Ingrese el valor a ingresar:",
+                        "Ingrese el valor a depositar:",
                         style: TextStyle(fontSize: 16, color: Colors.black87),
                       ),
                       const SizedBox(height: 15),
@@ -138,52 +249,7 @@ class _TransferScreenState extends State<TransferScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: () {
-                            if (_amountController.text.isNotEmpty) {
-                              // En un caso real, aquí iría la lógica para procesar la transferencia
-                              // y actualizar el saldo en la pantalla principal
-
-                              // Mostrar un diálogo de éxito
-                              showDialog(
-                                context: context,
-                                builder: (BuildContext context) {
-                                  return AlertDialog(
-                                    title: const Text("Transferencia exitosa"),
-                                    content: Text(
-                                      'Has transferido \$${_amountController.text} a tu cuenta',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.pop(
-                                            context,
-                                          ); // Cerrar el diálogo
-                                          Navigator.pushReplacementNamed(
-                                            context,
-                                            '/home',
-                                          ); // Volver al home
-                                        },
-                                        child: const Text(
-                                          "Aceptar",
-                                          style: TextStyle(
-                                            color: Color(0xFF0958B8),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Por favor ingrese un valor a transferir',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
+                          onPressed: _isLoading ? null : _processDeposit,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0958B8),
                             foregroundColor: Colors.white,
@@ -192,13 +258,18 @@ class _TransferScreenState extends State<TransferScreen> {
                             ),
                             elevation: 2,
                           ),
-                          child: const Text(
-                            "Confirmar Transferencia",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child:
+                              _isLoading
+                                  ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                  : const Text(
+                                    "Confirmar Depósito",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                         ),
                       ),
                     ],
@@ -265,18 +336,26 @@ class _TransferScreenState extends State<TransferScreen> {
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Color(0xFF0958B8),
+        backgroundColor: const Color(0xFF0958B8),
         currentIndex: _selectedIndex,
         selectedItemColor: const Color(0xFFFFFFFF),
         unselectedItemColor: const Color(0xFFC9C9C9),
         onTap: (index) {
           if (index != _selectedIndex) {
             if (index == 0) {
-              // Navegación a la pantalla principal
-              Navigator.pushReplacementNamed(context, '/home');
+              // Navegación a la pantalla principal con el ID del usuario
+              Navigator.pushReplacementNamed(
+                context,
+                '/home',
+                arguments: userId,
+              );
             } else if (index == 2) {
-              // Navegación a la pantalla de retiros
-              Navigator.pushReplacementNamed(context, '/withdrawals');
+              // Navegación a la pantalla de retiros con el ID del usuario
+              Navigator.pushReplacementNamed(
+                context,
+                '/withdrawals',
+                arguments: userId,
+              );
             }
             // No hacemos nada si el índice es 1 porque ya estamos en la pantalla de transferencias
           }
